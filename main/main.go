@@ -103,6 +103,7 @@ func prepareURL(url *url.URL) *url.URL {
 		if strings.Contains(url.Path, destination.Invoker) {
 			url.Path = strings.Replace(url.Path, destination.Invoker, emptyString, replaceFirst)
 			url.RawPath = strings.Replace(url.RawPath, destination.Invoker, emptyString, replaceFirst)
+			break
 		}
 	}
 	return url
