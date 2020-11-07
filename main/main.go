@@ -9,11 +9,13 @@ import (
 )
 
 const (
-	host        = "127.0.0.1"
-	port        = ":8080"
-	defaultUrl  = "http://127.0.0.1:8081"
-	emptyString = ""
-	slash       = "/"
+	host                  = "127.0.0.1"
+	port                  = ":8080"
+	defaultDestinationUrl = "http://127.0.0.1:8081"
+	emptyString           = ""
+	slash                 = "/"
+	slashIndex            = 1
+	replaceFirst          = 1
 )
 
 var (
@@ -27,7 +29,6 @@ var (
 )
 
 func main() {
-
 	reverseProxy := httputil.ReverseProxy{}
 
 	http.HandleFunc(slash, handleRequest(&reverseProxy))
@@ -38,16 +39,15 @@ func main() {
 	}
 }
 
-func handleRequest(p *httputil.ReverseProxy) func(w http.ResponseWriter, r *http.Request) {
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		p.Director = setDirector(r.URL.Path)
-		p.ServeHTTP(w, r)
+func handleRequest(proxy *httputil.ReverseProxy) func(responseWriter http.ResponseWriter, request *http.Request) {
+	return func(responseWriter http.ResponseWriter, request *http.Request) {
+		proxy.Director = setDirector(request.URL.Path)
+		proxy.ServeHTTP(responseWriter, request)
 	}
 }
 
-func setDirector(requestUrl string) func(r *http.Request) {
-	parse, err := url.Parse(defaultUrl)
+func setDirector(requestUrl string) func(request *http.Request) {
+	parse, err := url.Parse(defaultDestinationUrl)
 
 	for _, destination := range destinations {
 		if strings.HasPrefix(requestUrl, destination.Invoker) {
@@ -60,48 +60,50 @@ func setDirector(requestUrl string) func(r *http.Request) {
 		panic(err)
 	}
 
-	return func(req *http.Request) {
-		req.URL.Scheme = parse.Scheme
-		req.URL.Host = parse.Host
-		req.URL.Path, req.URL.RawPath = joinURLPath(parse, prepareURL(req.URL))
+	return func(request *http.Request) {
+		request.URL.Scheme = parse.Scheme
+		request.URL.Host = parse.Host
+		request.URL.Path, request.URL.RawPath = joinURLPath(parse, prepareURL(request.URL))
 	}
 }
 
-func joinURLPath(a, b *url.URL) (path, rawpath string) {
-	if a.RawPath == emptyString && b.RawPath == emptyString {
-		return singleJoiningSlash(a.Path, b.Path), emptyString
+func joinURLPath(proxyDestinationUrl, requestEndpoint *url.URL) (path, rawPath string) {
+	if proxyDestinationUrl.RawPath == emptyString && requestEndpoint.RawPath == emptyString {
+		return singleJoiningSlash(proxyDestinationUrl.Path, requestEndpoint.Path), emptyString
 	}
-	apath := a.EscapedPath()
-	bpath := b.EscapedPath()
+	proxyPath := proxyDestinationUrl.EscapedPath()
+	endpointPath := requestEndpoint.EscapedPath()
 
-	aslash := strings.HasSuffix(apath, slash)
-	bslash := strings.HasPrefix(bpath, slash)
+	hasBeforeSlash := strings.HasSuffix(proxyPath, slash)
+	hasAfterSlash := strings.HasPrefix(endpointPath, slash)
 
 	switch {
-	case aslash && bslash:
-		return a.Path + b.Path[1:], apath + bpath[1:]
-	case !aslash && !bslash:
-		return a.Path + slash + b.Path, apath + slash + bpath
+	case hasBeforeSlash && hasAfterSlash:
+		return proxyDestinationUrl.Path + requestEndpoint.Path[slashIndex:], proxyPath + endpointPath[slashIndex:]
+	case !hasBeforeSlash && !hasAfterSlash:
+		return proxyDestinationUrl.Path + slash + requestEndpoint.Path, proxyPath + slash + endpointPath
 	}
-	return a.Path + b.Path, apath + bpath
+	return proxyDestinationUrl.Path + requestEndpoint.Path, proxyPath + endpointPath
 }
 
-func singleJoiningSlash(a, b string) string {
-	aslash := strings.HasSuffix(a, slash)
-	bslash := strings.HasPrefix(b, slash)
+func singleJoiningSlash(proxyDestinationUrl, requestEndpoint string) string {
+	aslash := strings.HasSuffix(proxyDestinationUrl, slash)
+	bslash := strings.HasPrefix(requestEndpoint, slash)
 	switch {
 	case aslash && bslash:
-		return a + b[1:]
+		return proxyDestinationUrl + requestEndpoint[slashIndex:]
 	case !aslash && !bslash:
-		return a + slash + b
+		return proxyDestinationUrl + slash + requestEndpoint
 	}
-	return a + b
+	return proxyDestinationUrl + requestEndpoint
 }
 
 func prepareURL(url *url.URL) *url.URL {
 	for _, destination := range destinations {
-		url.Path = strings.Replace(url.Path, destination.Invoker, emptyString, 1)
-		url.RawPath = strings.Replace(url.RawPath, destination.Invoker, emptyString, 1)
+		if strings.Contains(url.Path, destination.Invoker) {
+			url.Path = strings.Replace(url.Path, destination.Invoker, emptyString, replaceFirst)
+			url.RawPath = strings.Replace(url.RawPath, destination.Invoker, emptyString, replaceFirst)
+		}
 	}
 	return url
 }
