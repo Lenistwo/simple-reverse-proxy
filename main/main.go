@@ -87,12 +87,12 @@ func joinURLPath(proxyDestinationUrl, requestEndpoint *url.URL) (path, rawPath s
 }
 
 func singleJoiningSlash(proxyDestinationUrl, requestEndpoint string) string {
-	aslash := strings.HasSuffix(proxyDestinationUrl, slash)
-	bslash := strings.HasPrefix(requestEndpoint, slash)
+	hasBeforeSlash := strings.HasSuffix(proxyDestinationUrl, slash)
+	hasAfterSlash := strings.HasPrefix(requestEndpoint, slash)
 	switch {
-	case aslash && bslash:
+	case hasBeforeSlash && hasAfterSlash:
 		return proxyDestinationUrl + requestEndpoint[slashIndex:]
-	case !aslash && !bslash:
+	case !hasBeforeSlash && !hasAfterSlash:
 		return proxyDestinationUrl + slash + requestEndpoint
 	}
 	return proxyDestinationUrl + requestEndpoint
