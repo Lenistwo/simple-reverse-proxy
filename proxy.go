@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"simpleReverseProxy/structs"
 	"strings"
 )
 
@@ -19,7 +18,7 @@ const (
 )
 
 var (
-	destinations = []structs.Destination{{
+	destinations = []Destination{{
 		Invoker: "/api/auth",
 		URL:     "http://127.0.0.1:8410",
 	}, {
